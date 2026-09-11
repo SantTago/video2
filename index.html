@@ -33,8 +33,8 @@
       height: 100dvh;
 
       display: flex;
-      justify-content: center;
       align-items: center;
+      justify-content: center;
 
       background: #000;
       overflow: hidden;
@@ -55,7 +55,64 @@
       background: #000;
     }
 
-    /* BARRA PERSONALIZADA */
+    /* PLAY CENTRAL */
+    .play-button {
+      position: absolute;
+
+      top: 50%;
+      left: 50%;
+
+      transform: translate(-50%, -50%);
+
+      width: 82px;
+      height: 82px;
+
+      border: 2px solid rgba(255, 255, 255, 0.8);
+      border-radius: 50%;
+
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      background: rgba(0, 0, 0, 0.45);
+
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+
+      cursor: pointer;
+
+      z-index: 20;
+
+      transition:
+        opacity 0.25s ease,
+        transform 0.25s ease;
+    }
+
+    .play-button::after {
+      content: "";
+
+      margin-left: 6px;
+
+      width: 0;
+      height: 0;
+
+      border-top: 14px solid transparent;
+      border-bottom: 14px solid transparent;
+      border-left: 22px solid #fff;
+    }
+
+    .play-button:hover {
+      transform:
+        translate(-50%, -50%)
+        scale(1.08);
+    }
+
+    .play-button.hide {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    /* BARRA DE PROGRESSO */
     .progress-container {
       position: absolute;
 
@@ -73,7 +130,7 @@
 
       cursor: pointer;
 
-      z-index: 10;
+      z-index: 15;
     }
 
     .progress-bar {
@@ -88,8 +145,6 @@
       );
 
       border-radius: 100px;
-
-      transition: width 0.1s linear;
 
       box-shadow:
         0 0 8px rgba(123, 97, 255, 0.8),
@@ -110,9 +165,14 @@
       .progress-container {
         left: 15px;
         right: 15px;
-        bottom: 12px;
+        bottom: calc(14px + env(safe-area-inset-bottom));
 
         height: 5px;
+      }
+
+      .play-button {
+        width: 78px;
+        height: 78px;
       }
     }
 
@@ -129,13 +189,12 @@
       }
 
       .progress-container {
+        width: calc(100% - 40px);
         max-width: 500px;
 
         left: 50%;
 
         transform: translateX(-50%);
-
-        width: calc(100% - 40px);
       }
     }
   </style>
@@ -147,17 +206,27 @@
 
     <video
       id="videoPrincipal"
-      autoplay
-      muted
       playsinline
+      webkit-playsinline
       preload="auto"
     >
 
-      <source src="meu-video.mp4" type="video/mp4">
+      <source
+        src="meu-video.mp4"
+        type="video/mp4"
+      >
 
       Seu navegador não suporta este vídeo.
 
     </video>
+
+
+    <button
+      id="playButton"
+      class="play-button"
+      type="button"
+      aria-label="Reproduzir vídeo"
+    ></button>
 
 
     <div
@@ -180,6 +249,9 @@
     const video =
       document.getElementById("videoPrincipal");
 
+    const playButton =
+      document.getElementById("playButton");
+
     const progressContainer =
       document.getElementById("progressContainer");
 
@@ -187,67 +259,109 @@
       document.getElementById("progressBar");
 
 
-    /* AUTOPLAY */
+    /*
+    =========================
+    PLAY + ÁUDIO
+    =========================
+    */
 
-    window.addEventListener("load", function () {
+    async function iniciarVideo() {
 
-      video.muted = true;
+      try {
 
-      video.play().catch(function (erro) {
+        /* ATIVA O SOM ANTES DO PLAY */
+        video.muted = false;
+        video.volume = 1;
+
+        /* INICIA O VÍDEO */
+        await video.play();
+
+        /* ESCONDE O PLAY */
+        playButton.classList.add("hide");
+
+      } catch (erro) {
 
         console.log(
-          "Autoplay bloqueado:",
+          "Erro ao reproduzir vídeo:",
           erro
         );
 
-      });
+      }
 
-    });
+    }
 
 
-    /* ATUALIZA A BARRA */
+    playButton.addEventListener(
+      "click",
+      iniciarVideo
+    );
+
+
+    /*
+    =========================
+    BARRA DE PROGRESSO
+    =========================
+    */
 
     video.addEventListener(
       "timeupdate",
       function () {
 
-        if (video.duration) {
+        if (!video.duration) return;
 
-          const porcentagem =
-            (video.currentTime / video.duration) * 100;
+        const porcentagem =
+          (
+            video.currentTime /
+            video.duration
+          ) * 100;
 
-          progressBar.style.width =
-            porcentagem + "%";
-
-        }
+        progressBar.style.width =
+          porcentagem + "%";
 
       }
     );
 
 
-    /* CLICAR NA BARRA PARA AVANÇAR */
+    /*
+    =========================
+    AVANÇAR / VOLTAR
+    =========================
+    */
 
     progressContainer.addEventListener(
       "click",
       function (event) {
 
-        const largura =
-          progressContainer.clientWidth;
+        if (!video.duration) return;
 
-        const clique =
-          event.offsetX;
+        const rect =
+          progressContainer.getBoundingClientRect();
+
+        const posicao =
+          event.clientX - rect.left;
 
         const porcentagem =
-          clique / largura;
+          Math.min(
+            Math.max(
+              posicao / rect.width,
+              0
+            ),
+            1
+          );
 
         video.currentTime =
-          porcentagem * video.duration;
+          porcentagem *
+          video.duration;
 
       }
     );
 
 
-    /* CLICAR NO VÍDEO = PAUSE / PLAY */
+    /*
+    =========================
+    PAUSAR TOCANDO NO VÍDEO
+    =========================
+    */
 
     video.addEventListener(
       "click",
@@ -255,13 +369,38 @@
 
         if (video.paused) {
 
+          video.muted = false;
+          video.volume = 1;
+
           video.play();
+
+          playButton.classList.add("hide");
 
         } else {
 
           video.pause();
 
+          playButton.classList.remove("hide");
+
         }
+
+      }
+    );
+
+
+    /*
+    =========================
+    QUANDO TERMINAR
+    =========================
+    */
+
+    video.addEventListener(
+      "ended",
+      function () {
+
+        playButton.classList.remove("hide");
+
+        progressBar.style.width = "0%";
 
       }
     );
